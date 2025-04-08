@@ -10,7 +10,7 @@ import asyncio
 def get_inference_client():
     return InferenceClient(
         provider="hf-inference",
-        api_key=os.environ.get("HF_TOKEN", "")
+        api_key=os.environ.get("HF_TOKEN", "") #add you hf token in the "secret" section
     )
 
 # Function to get context from vector searches
