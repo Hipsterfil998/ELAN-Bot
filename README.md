@@ -39,8 +39,8 @@ ELAN (EUDICO Linguistic Annotator) is a professional tool for the creation of co
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/yourusername/elan-bot.git
-cd elan-bot
+https://github.com/Hipsterfil998/ELAN-bot.git
+cd ELAN-Bot
 ```
 
 2. Install required dependencies:
