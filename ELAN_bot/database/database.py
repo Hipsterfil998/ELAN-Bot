@@ -12,10 +12,10 @@ def read_pickle(file_path):
         content = pickle.load(file)
     return content
 
-chunks = read_pickle('/home/filippo/Scrivania/ELAN_bot/ELAN_chunks.pkl')
+chunks = read_pickle('./ELAN_chunks.pkl') #replace with your directory
 
 
-client = QdrantClient(path="/home/filippo/Scrivania/ELAN_bot/qdrant_data")
+client = QdrantClient(path="./qdrant_data") #replace with your directory
 
 client.create_collection(
     collection_name="ELAN_docs_pages",
