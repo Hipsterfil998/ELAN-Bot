@@ -1,0 +1,218 @@
+import gradio as gr
+from qdrant_client import models, QdrantClient
+from sentence_transformers import SentenceTransformer
+from huggingface_hub import InferenceClient
+import os
+import time
+import asyncio
+
+# Configure the inference client
+def get_inference_client():
+    return InferenceClient(
+        provider="hf-inference",
+        api_key=os.environ.get("HF_TOKEN", "")
+    )
+
+# Function to get context from vector searches
+def get_context(query, encoder_model="nomic-ai/nomic-embed-text-v1.5"):
+    try:
+        # Get client path from environment variable or use default
+        client_path = "qdrant_data"
+        
+        # Load the encoder
+        encoder = SentenceTransformer(encoder_model, trust_remote_code=True)
+        
+        # Initialize the Qdrant client
+        client = QdrantClient(path=client_path)
+        
+        # Encode the query
+        query_vector = encoder.encode(query).tolist()
+        
+        # Execute the search
+        hits = client.query_points(
+            collection_name="ELAN_docs_pages",
+            query=query_vector,
+            limit=3,
+        ).points
+            
+        # Get the context content
+        context = "\n".join([hit.payload['content'] for hit in hits])
+        
+        return context
+    except Exception as e:
+        print(f"Error in vector search: {e}")
+        return "It was not possible to find relevant information."
+
+# Function to generate a response based on context
+def get_answer(query, context, model="meta-llama/Llama-3.2-3B-Instruct"):
+    try:
+        client = get_inference_client()
+        
+        PROMPT = """<|start_header_id|>user<|end_header_id|> Context: {contesto} question: {domanda}
+                    Use exclusively the information contained in the provided context to reformulate the text in about 120 words.
+                    take into consideration the provided question as a reference for the formulation of the answer.
+                    To be more clear and coincise use numbered lists when giving instructions.
+                    Make sure the reformulation maintains the original meaning.
+                    In the output, check that there are no grammatical errors. If you find errors, correct them.
+                    Do not add information that is not present in the original text.
+                    In the output, never say that you are summarizing the text. <|eot_id|>"""
+        
+        response = client.chat.completions.create(
+            model=model,
+            messages=[
+                {"role": "system", "content": "<|begin_of_text|><|start_header_id|>system<|end_header_id|>"
+                "You are a virtual assistant that helps the user in using an annotation software called ELAN. "
+                "Your task is to summarize information and guide the user in the usage of the software. <|eot_id|>"},
+                {"role": "user", "content": PROMPT.format(contesto=context, domanda=query)},
+                {"role": "assistant", "content": "Here is what you're looking for: "}
+            ],
+            temperature=0.1,
+            max_tokens=500
+        )
+        
+        return response.choices[0].message.content
+    except Exception as e:
+        print(f"Error in response generation: {e}")
+        return "I'm sorry, an error occurred while generating the response."
+
+# Function to modify XML code
+def modify_xml(xml_code, model="meta-llama/Llama-3.2-3B-Instruct"):
+    try:
+        client = get_inference_client()
+        
+        PROMPT = """<|start_header_id|>user<|end_header_id|>
+                    example code 1: <?xml version="1.0" encoding="UTF-8"?>
+                    <ANNOTATION_DOCUMENT AUTHOR="Mario Rossi" DATE="2025-04-08T12:00:00+01:00" FORMAT="3.0" VERSION="3.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://www.mpi.nl/tools/elan/EAFv3.0.xsd">
+                        <HEADER MEDIA_FILE="" TIME_UNITS="milliseconds">
+                            <MEDIA_DESCRIPTOR MEDIA_URL="file:///C:/Registrazioni/intervista01.wav" MIME_TYPE="audio/x-wav" RELATIVE_MEDIA_URL="./intervista01.wav"/>
+                            <PROPERTY NAME="lastUsedAnnotationId">42</PROPERTY>
+                        </HEADER>
+                        <TIME_ORDER>
+                            <TIME_SLOT TIME_SLOT_ID="ts1" TIME_VALUE="1000"/>
+                            <TIME_SLOT TIME_SLOT_ID="ts2" TIME_VALUE="3500"/>
+                            <TIME_SLOT TIME_SLOT_ID="ts3" TIME_VALUE="4200"/>
+                            <TIME_SLOT TIME_SLOT_ID="ts4" TIME_VALUE="6800"/>
+                        </TIME_ORDER>
+                        <TIER LINGUISTIC_TYPE_REF="default-lt" PARTICIPANT="Intervistatore" TIER_ID="Intervistatore">
+                            <ANNOTATION>
+                                <ALIGNABLE_ANNOTATION ANNOTATION_ID="a1" TIME_SLOT_REF1="ts1" TIME_SLOT_REF2="ts2">
+                                    <ANNOTATION_VALUE>Come descriverebbe la sua giornata tipo?</ANNOTATION_VALUE>
+                                </ALIGNABLE_ANNOTATION>
+                            </ANNOTATION>
+                        </TIER>
+                        <TIER LINGUISTIC_TYPE_REF="default-lt" PARTICIPANT="Intervistato" TIER_ID="Intervistato">
+                            <ANNOTATION>
+                                <ALIGNABLE_ANNOTATION ANNOTATION_ID="a2" TIME_SLOT_REF1="ts3" TIME_SLOT_REF2="ts4">
+                                    <ANNOTATION_VALUE>Di solito mi sveglio presto e faccio colazione.</ANNOTATION_VALUE>
+                                </ALIGNABLE_ANNOTATION>
+                            </ANNOTATION>
+                        </TIER>
+                        <LINGUISTIC_TYPE GRAPHIC_REFERENCES="false" LINGUISTIC_TYPE_ID="default-lt" TIME_ALIGNABLE="true"/>
+                        <CONSTRAINT DESCRIPTION="Time subdivision of parent annotation's time interval, no time gaps allowed within this interval" STEREOTYPE="Time_Subdivision"/>
+                        <CONSTRAINT DESCRIPTION="Symbolic subdivision of a parent annotation. Annotations refering to the same parent are ordered" STEREOTYPE="Symbolic_Subdivision"/>
+                        <CONSTRAINT DESCRIPTION="1-1 association with a parent annotation" STEREOTYPE="Symbolic_Association"/>
+                        <CONSTRAINT DESCRIPTION="Time alignable annotations within the parent annotation's time interval, gaps are allowed" STEREOTYPE="Included_In"/>
+                    </ANNOTATION_DOCUMENT>
+                    example code 2: <?xml version="1.0" encoding="UTF-8"?>
+                    <ANNOTATION_DOCUMENT AUTHOR="Giulia Bianchi" DATE="2025-04-08T14:30:00+01:00" FORMAT="3.0" VERSION="3.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://www.mpi.nl/tools/elan/EAFv3.0.xsd">
+                        <HEADER MEDIA_FILE="" TIME_UNITS="milliseconds">
+                            <MEDIA_DESCRIPTOR MEDIA_URL="file:///C:/Progetti/multilingual_corpus/video01.mp4" MIME_TYPE="video/mp4" RELATIVE_MEDIA_URL="./video01.mp4"/>
+                            <PROPERTY NAME="lastUsedAnnotationId">15</PROPERTY>
+                        </HEADER>
+                        <TIME_ORDER>
+                            <TIME_SLOT TIME_SLOT_ID="ts1" TIME_VALUE="2500"/>
+                            <TIME_SLOT TIME_SLOT_ID="ts2" TIME_VALUE="5200"/>
+                            <TIME_SLOT TIME_SLOT_ID="ts3" TIME_VALUE="2500"/>
+                            <TIME_SLOT TIME_SLOT_ID="ts4" TIME_VALUE="5200"/>
+                            <TIME_SLOT TIME_SLOT_ID="ts5" TIME_VALUE="2500"/>
+                            <TIME_SLOT TIME_SLOT_ID="ts6" TIME_VALUE="4100"/>
+                        </TIME_ORDER>
+                        <TIER LINGUISTIC_TYPE_REF="utterance" PARTICIPANT="Speaker1" TIER_ID="Italiano">
+                            <ANNOTATION>
+                                <ALIGNABLE_ANNOTATION ANNOTATION_ID="a1" TIME_SLOT_REF1="ts1" TIME_SLOT_REF2="ts2">
+                                    <ANNOTATION_VALUE>Buongiorno, come sta oggi?</ANNOTATION_VALUE>
+                                </ALIGNABLE_ANNOTATION>
+                            </ANNOTATION>
+                        </TIER>
+                        <TIER LINGUISTIC_TYPE_REF="translation" PARENT_REF="Italiano" PARTICIPANT="Translator" TIER_ID="English">
+                            <ANNOTATION>
+                                <REF_ANNOTATION ANNOTATION_ID="a2" ANNOTATION_REF="a1">
+                                    <ANNOTATION_VALUE>Good morning, how are you today?</ANNOTATION_VALUE>
+                                </REF_ANNOTATION>
+                            </ANNOTATION>
+                        </TIER>
+                        <TIER LINGUISTIC_TYPE_REF="gesture" PARTICIPANT="Speaker1" TIER_ID="Gestures">
+                            <ANNOTATION>
+                                <ALIGNABLE_ANNOTATION ANNOTATION_ID="a3" TIME_SLOT_REF1="ts5" TIME_SLOT_REF2="ts6">
+                                    <ANNOTATION_VALUE>Inclinazione della testa mentre saluta</ANNOTATION_VALUE>
+                                </ALIGNABLE_ANNOTATION>
+                            </ANNOTATION>
+                        </TIER>
+                        <LINGUISTIC_TYPE GRAPHIC_REFERENCES="false" LINGUISTIC_TYPE_ID="utterance" TIME_ALIGNABLE="true"/>
+                        <LINGUISTIC_TYPE CONSTRAINTS="Symbolic_Association" GRAPHIC_REFERENCES="false" LINGUISTIC_TYPE_ID="translation" TIME_ALIGNABLE="false"/>
+                        <LINGUISTIC_TYPE GRAPHIC_REFERENCES="false" LINGUISTIC_TYPE_ID="gesture" TIME_ALIGNABLE="true"/>
+                        <CONSTRAINT DESCRIPTION="Time subdivision of parent annotation's time interval, no time gaps allowed within this interval" STEREOTYPE="Time_Subdivision"/>
+                        <CONSTRAINT DESCRIPTION="Symbolic subdivision of a parent annotation. Annotations refering to the same parent are ordered" STEREOTYPE="Symbolic_Subdivision"/>
+                        <CONSTRAINT DESCRIPTION="1-1 association with a parent annotation" STEREOTYPE="Symbolic_Association"/>
+                        <CONSTRAINT DESCRIPTION="Time alignable annotations within the parent annotation's time interval, gaps are allowed" STEREOTYPE="Included_In"/>
+                    </ANNOTATION_DOCUMENT>
+        
+                    provided XML code: {code}
+                    Modify the provided code according to the instructions given by the user.
+                    The output should be suggested by the user, otherwhise the output should be the same as the input.
+                    Take the example code to better understand the XML structure only.
+                    Don't add any additional information or explanations if not explicitely requested.<|eot_id|>"""
+        
+        response = client.chat.completions.create(
+            model=model,
+            messages=[
+                {"role": "system", "content": "<|begin_of_text|><|start_header_id|>system<|end_header_id|>"
+                "You are a virtual assistant that helps the user in using an annotation software called ELAN. "
+                "Your task is to modify the given XML code according to the instructions given by the user.<|eot_id|>"},
+                {"role": "user", "content": PROMPT.format(code=xml_code)},
+                {"role": "assistant", "content": "Here is your modified XML code: "}
+            ],
+            temperature=0.7,
+            max_tokens=None
+        )
+        
+        return response.choices[0].message.content
+    except Exception as e:
+        print(f"Error in XML code modification: {e}")
+        return "I'm sorry, an error occurred while modifying the XML code."
+
+# Stream response in chatbot
+def elan_assistant(message, history):
+    if "<?xml" in message or "<eaf" in message or "<ANNOTATION" in message:
+        response = modify_xml(message)
+        return response
+    else:
+        context = get_context(message)
+        full_response = get_answer(message, context)
+        return full_response
+    
+
+# Build the Gradio app with streaming enabled
+demo = gr.ChatInterface(
+    fn=elan_assistant,
+    title="ELAN-Bot 🤖 ",
+    description="""Hello there!👋\nI'm ELAN-Bot, a virtual assistant designed to help you with the ELAN annotation software. You can ask me questions about:\n
+    - 📚 manual: how to use ELAN and its main features
+    - 💻 XML code: modify the EAF file by providing me with the copy-pasted XML code and some instructions (e.g: extract ... from this XML code)""",
+    examples=[
+        "How can I add a new tier in ELAN?",
+        "How can I export annotations in txt format?",
+        "How can I search within annotations?"
+    ],
+    theme=gr.themes.Soft(),
+    type="messages",
+    textbox=gr.Textbox(placeholder="Ask me anything about ELAN..."),
+    autoscroll = False,
+    show_progress = 'full'
+)
+
+# App startup
+if __name__ == "__main__":
+    # Enable built-in Gradio streaming
+    demo.queue()
+    demo.launch(share=True)

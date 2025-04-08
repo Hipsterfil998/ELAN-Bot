@@ -1,0 +1,5 @@
+gradio>=4.0.0
+sentence-transformers>=2.2.2
+qdrant-client>=1.5.0
+huggingface-hub>=0.16.0
+einops
