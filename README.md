@@ -3,7 +3,7 @@
 ELAN-Bot is a specialized chatbot designed to assist users with ELAN, the professional annotation software widely used in linguistics, language documentation, and multimodal research. This virtual assistant provides guidance on how to use ELAN's features and can help modify EAF files through natural language interactions.
 
 Try to chat with [ELAN-Bot](https://huggingface.co/spaces/HipFil98/ELAN_bot) to check its functionalities!
-Available in English 🇬🇧, Spanish 🇪🇸, Italian 🇮🇹 and French 🇫🇷
+Available in English 🇬🇧, Spanish 🇪🇸, Italian 🇮🇹, French 🇫🇷 and German 🇩🇪
 
 <img src="elan_bot.png" alt="Chat with ELAN-BOT"/>
 
