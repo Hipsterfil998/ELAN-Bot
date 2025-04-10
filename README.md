@@ -25,7 +25,7 @@ ELAN (EUDICO Linguistic Annotator) is a professional tool for the creation of co
 - **Frontend**: Gradio chat interface
 - **Vector Database**: Qdrant for efficient similarity search
 - **Embeddings**: Sentence Transformers (Nomic Embed Text v1.5)
-- **Language Model**: Meta Llama 3.2 models via Hugging Face Inference API
+- **Language Model**: Meta Llama 3.3 70B model via Hugging Face Inference API
 - **Python Libraries**: Gradio, Qdrant Client, Sentence Transformers, Hugging Face Hub
 
 ## Prerequisites
