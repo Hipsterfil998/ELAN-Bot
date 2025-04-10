@@ -6,6 +6,7 @@ import os
 import time
 import asyncio
 
+
 # Configure the inference client
 def get_inference_client():
     return InferenceClient(
@@ -44,13 +45,11 @@ def get_context(query, encoder_model="nomic-ai/nomic-embed-text-v1.5"):
         return "I'm sorry, it was not possible to find any relevant information."
 
 # Function to generate a response based on context
-def get_answer(query, context, model="meta-llama/Llama-3.2-3B-Instruct"):
+def get_answer(query, context, model="meta-llama/Llama-3.3-70B-Instruct"):
     try:
         client = get_inference_client()
         
         PROMPT = """<|start_header_id|>user<|end_header_id|>
-        
-                    Context: {contesto}, question: {domanda}
                     Use exclusively the information contained in the provided context to reformulate the text in about 120 words.
                     take into consideration the provided question as a reference for the formulation of the answer.
                     To be more clear and coincise use numbered lists when giving instructions.
@@ -58,7 +57,9 @@ def get_answer(query, context, model="meta-llama/Llama-3.2-3B-Instruct"):
                     In the output, check that there are no grammatical errors. If you find errors, correct them.
                     Do not add information that is not present in the original text.
                     The output must have the same language of the question. If not translate it.
-                    In the output, never say that you are summarizing the text. <|eot_id|>"""
+                    In the output, never say that you are summarizing the text and never mention the ELAN manual and its chapthers. In this latter case tell to be more specific with the question.
+                    
+                    Context: {contesto}, question: {domanda} <|eot_id|>"""
         
         response = client.chat.completions.create(
             model=model,
@@ -77,7 +78,7 @@ def get_answer(query, context, model="meta-llama/Llama-3.2-3B-Instruct"):
         return "I'm sorry, an error occurred while generating the response."
 
 # Function to modify XML code
-def modify_xml(eaf_file, model="meta-llama/Llama-3.2-3B-Instruct"):
+def modify_xml(eaf_file, model="meta-llama/Llama-3.3-70B-Instruct"):
     try:
         client = get_inference_client()
         
@@ -128,14 +129,15 @@ def modify_xml(eaf_file, model="meta-llama/Llama-3.2-3B-Instruct"):
                         <CONSTRAINT DESCRIPTION="1-1 association with a parent annotation" STEREOTYPE="Symbolic_Association"/>
                         <CONSTRAINT DESCRIPTION="Time alignable annotations within the parent annotation's time interval, gaps are allowed" STEREOTYPE="Included_In"/>
                     </ANNOTATION_DOCUMENT>
-        
-                    provided .eaf file and instructions: {code}
-                    
+         
                     Modify the provided eaf file according to the instructions given by the user.
-                    The output format should be suggested by the user, otherwhise the output format should be the same as the input.
-                    Take the above example eaf file to better understand the file structure and where instructions start.
-                    Follow instructions step by step.
-                    Don't add any additional information or explanations to the ouput if not explicitely requested in the instructions.<|eot_id|>"""
+                    Take the above example eaf file to better understand the file structure and where instructions start. 
+                    Parse the eaf file step by step. Remember that is XML-based.
+                    Then follow the instructions step by step.
+                    Don't add any additional information, explanations or reasoning steps to the ouput if not explicitely requested in the instructions.
+                    Report the final output only.
+                    
+                    Provided .eaf file and instructions: {code} <|eot_id|>"""
         
         response = client.chat.completions.create(
             model=model,
@@ -143,8 +145,7 @@ def modify_xml(eaf_file, model="meta-llama/Llama-3.2-3B-Instruct"):
                 {"role": "system", "content": "<|begin_of_text|><|start_header_id|>system<|end_header_id|>"
                 "You are a virtual assistant that helps the user in using an annotation software called ELAN."
                 "An annotation file (eaf) is the document that contains all the information about tiers (their attributes and dependency relations), annotations, and time alignments and links to media files."
-                "Your task is to modify the given eaf file and extract information according to the instructions given by the user."
-                "Detect the question language and translate the output in the same language if it is not English. Do not touch the eaf file.<|eot_id|>"},
+                "Your task is to modify the given eaf file and extract information strictly following the instructions given by the user.<|eot_id|>"},
                 {"role": "user", "content": PROMPT.format(code=eaf_file)},
                 {"role": "assistant", "content": "Here is your output: "}
             ],
@@ -174,9 +175,9 @@ demo = gr.ChatInterface(
     title="ELAN-Bot 🤖 ",
     description="""Hello there!👋\nI'm ELAN-Bot, a virtual assistant designed to help you with the ELAN annotation software. You can ask me questions about:\n
     - 📚 software usage: how to use ELAN and its main features
-    - 💻 XML code: modify the EAF file by providing me with the copy-pasted XML code and some instructions (e.g: extract ... from this .eaf file)\n
-    Available in English 🇬🇧, Spanish 🇪🇸, Italian 🇮🇹 and French 🇫🇷
-    Based on Llama 3.2 3B""",
+    - 💻 XML code: modify the EAF file by providing me with the copy-pasted XML code and some instructions (e.g --> instructions: [.eaf file] extract ... from this .eaf file. Then report me the result as text.)\n
+    Software usage functionality available in English 🇬🇧, Spanish 🇪🇸, Italian 🇮🇹, French 🇫🇷 and German 🇩🇪
+    Based on Llama 3.3 70B""",
     examples=[
         "How can I add a new tier in ELAN?",
         "¿Cómo puedo exportar anotaciones en formato txt? ",
@@ -188,7 +189,6 @@ demo = gr.ChatInterface(
     autoscroll = False,
     show_progress = 'full'
 )
-
 
 # App startup
 if __name__ == "__main__":
