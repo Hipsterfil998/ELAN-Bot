@@ -16,11 +16,9 @@ DEFAULT_ENCODER_MODEL = "nomic-ai/nomic-embed-text-v1.5"
 DEFAULT_LLM_MODEL = "meta-llama/Llama-3.3-70B-Instruct"
 DEFAULT_TOKENIZER_MODEL = "gpt-4o-mini"
 
-# Vector Database Configuration - HF Spaces compatible  
+# Vector Database Configuration - HF Spaces compatible
 # Database is directly in the project root, not in data/ subdirectory
 QDRANT_CLIENT_PATH = str(BASE_DIR / "qdrant_data")
-# Ensure the qdrant directory exists
-Path(QDRANT_CLIENT_PATH).mkdir(parents=True, exist_ok=True)
 
 # Collection name matches your actual data structure
 # Note: Qdrant automatically manages collections/ subdirectory

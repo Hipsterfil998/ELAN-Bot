@@ -3,7 +3,6 @@ Main application file for ELAN-Bot.
 """
 
 import os
-import sys
 import warnings
 
 # Set environment variable for CPU-only torch

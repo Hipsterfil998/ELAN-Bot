@@ -53,22 +53,14 @@ class TextProcessor:
         else:
             eaf_content = eaf_file
         
-        # Tokenize the content
+        # Tokenize, split into chunks, and decode in a single pass
         tokenizer = self._get_tokenizer()
         tokens = tokenizer.encode(eaf_content)
-        
-        # Split tokens into chunks
-        token_chunks = []
-        for i in range(0, len(tokens), chunk_size):
-            chunk = tokens[i:i+chunk_size]
-            token_chunks.append(chunk)
-        
-        # Decode chunks back to text
-        text_chunks = []
-        for chunk in token_chunks:
-            chunk_text = tokenizer.decode(chunk)
-            text_chunks.append(chunk_text)
-        
+        text_chunks = [
+            tokenizer.decode(tokens[i:i + chunk_size])
+            for i in range(0, len(tokens), chunk_size)
+        ]
+
         return instructions, text_chunks
     
     @staticmethod
